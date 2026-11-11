@@ -4,11 +4,14 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-    Generated,
+  Generated,
+  OneToMany,
 } from 'typeorm';
+import { TenantUser } from './tenant-user.entity';
 
 
-@Entity({ name: 'shops', schema: 'public' })export class Shop {
+@Entity({ name: 'shops', schema: 'public' })
+export class Shop {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -27,6 +30,9 @@ import {
 
   @Column({ default: true })
   isActive: boolean;
+
+  @OneToMany(() => TenantUser, (tenantUser) => tenantUser.shop)
+  tenantUsers: TenantUser[];
 
   @CreateDateColumn()
   createdAt: Date;

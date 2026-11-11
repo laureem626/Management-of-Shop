@@ -1,28 +1,36 @@
-import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsNotEmpty,
   IsString,
-  MaxLength,
+  IsNotEmpty,
+  ValidateNested,
 } from 'class-validator';
+
+import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
+
+import { CreateShopAdminDto } from './create-shop-admin.dto';
 
 export class CreateShopDto {
   @ApiProperty({
+    example: 'Laureen Shopping Centre',
     description: 'Name of the shop',
-    example: 'Supermarket Tanzania',
-    maxLength: 150,
   })
-  @IsNotEmpty()
   @IsString()
-  @MaxLength(150)
+  @IsNotEmpty()
   name: string;
 
   @ApiProperty({
+    example: 'LSC001',
     description: 'Unique shop code',
-    example: 'SHOP-001',
-    maxLength: 30,
   })
-  @IsNotEmpty()
   @IsString()
-  @MaxLength(30)
+  @IsNotEmpty()
   code: string;
+
+  @ApiProperty({
+    type: () => CreateShopAdminDto,
+    description: 'Administrator details for the new shop',
+  })
+  @ValidateNested()
+  @Type(() => CreateShopAdminDto)
+  admin: CreateShopAdminDto;
 }
