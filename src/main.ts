@@ -17,9 +17,14 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  const configService = new ConfigService();
-  const port = configService.get('PORT') ?? 3000;
-   const config = new DocumentBuilder()
+
+  const configService = app.get(ConfigService);
+  const port =
+    Number(configService.get<number>('APP_PORT')) ||
+    Number(configService.get<number>('PORT')) ||
+    3000;
+
+  const config = new DocumentBuilder()
     .setTitle('Shop Management API')
     .setDescription('API documentation for Shop Management System')
     .setVersion('1.0')
