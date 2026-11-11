@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
 import { User } from '../../public/entity/users.entity';
+import { TenantUser } from '../../public/entity/tenant-user.entity';
 import { LoginDto } from '../dto/login.dto';
 
 @Injectable()
@@ -17,6 +18,9 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+
+    @InjectRepository(TenantUser)
+    private readonly tenantUserRepository: Repository<TenantUser>,
 
     private readonly jwtService: JwtService,
   ) {}
@@ -28,22 +32,16 @@ export class AuthService {
     const user = await this.userRepository
       .createQueryBuilder('user')
       .addSelect('user.password')
-      .leftJoinAndSelect('user.shops', 'tenantUser')
-      .leftJoinAndSelect('tenantUser.shop', 'shop')
       .where('LOWER(user.email) = LOWER(:email)', { email })
       .getOne();
 
     if (!user) {
-      throw new UnauthorizedException(
-        'Invalid email or password',
-      );
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
     // 2. Check whether user is active
     if (!user.isActive) {
-      throw new UnauthorizedException(
-        'Your account is inactive',
-      );
+      throw new UnauthorizedException('Your account is inactive.');
     }
 
     // 3. Verify password
@@ -53,44 +51,65 @@ export class AuthService {
     );
 
     if (!passwordMatch) {
-      throw new UnauthorizedException(
-        'Invalid email or password',
-      );
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
-    // 4. Generate JWT payload
+    let selectedShop: any = null;
+    let selectedMembership: TenantUser | null = null;
+
+    // 4. Automatically identify the user's shop
+    if (!user.isSuperAdmin) {
+      const memberships = await this.tenantUserRepository.find({
+        where: {
+          userId: user.id,
+          isActive: true,
+        },
+        relations: {
+          shop: true,
+        },
+      });
+
+      // Keep only memberships whose shops are active
+      const activeMemberships = memberships.filter(
+        (membership) => membership.shop?.isActive,
+      );
+
+      if (activeMemberships.length === 0) {
+        throw new UnauthorizedException(
+          'You are not assigned to an active shop.',
+        );
+      }
+
+      if (activeMemberships.length > 1) {
+        throw new UnauthorizedException(
+          'Your account is assigned to multiple shops. Please contact the Super Admin.',
+        );
+      }
+
+      selectedMembership = activeMemberships[0];
+      selectedShop = selectedMembership.shop;
+    }
+
+    // 5. Generate JWT payload
     const payload = {
       sub: user.id,
       uuid: user.uuid,
       email: user.email,
+      isSuperAdmin: user.isSuperAdmin,
+
+      // Automatically assigned shop information
+      shopId: selectedShop?.id ?? null,
+      tenantUserId: selectedMembership?.id ?? null,
+      role: selectedMembership?.role ?? null,
     };
 
-    // 5. Generate access token
-    const accessToken = await this.jwtService.signAsync(
-      payload,
-    );
-
-    // 6. Retrieve active shops belonging to user
-    const shops = (user.shops || [])
-      .filter(
-        (membership) =>
-          membership.isActive &&
-          membership.shop?.isActive,
-      )
-      .map((membership) => ({
-        id: membership.shop.id,
-        uuid: membership.shop.uuid,
-        name: membership.shop.name,
-        code: membership.shop.code,
-        role: membership.role,
-      }));
+    // 6. Generate access token
+    const accessToken = await this.jwtService.signAsync(payload);
 
     // 7. Return response
     return {
-      message: 'Login successful',
-
+      message: 'Login successful.',
       accessToken,
-
       tokenType: 'Bearer',
 
       user: {
@@ -101,9 +120,18 @@ export class AuthService {
         email: user.email,
         phoneNumber: user.phoneNumber,
         profileImage: user.profileImage,
+        isSuperAdmin: user.isSuperAdmin,
       },
 
-      shops,
+      shop: selectedShop
+        ? {
+            id: selectedShop.id,
+            uuid: selectedShop.uuid,
+            name: selectedShop.name,
+            code: selectedShop.code,
+            role: selectedMembership?.role,
+          }
+        : null,
     };
   }
 }
