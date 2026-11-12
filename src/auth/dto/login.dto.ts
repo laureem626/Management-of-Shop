@@ -1,9 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsNotEmpty,
   IsString,
   MinLength,
+  IsOptional,
+  IsInt,
+  Min,
 } from 'class-validator';
 
 export class LoginDto {
@@ -24,4 +27,13 @@ export class LoginDto {
   @IsString()
   @MinLength(6)
   password: string;
+
+  @ApiPropertyOptional({
+    description: 'Shop ID. Required when the user belongs to multiple shops.',
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  shopId?: number;
 }

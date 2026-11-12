@@ -19,14 +19,6 @@ export class CreateShopDto {
   name: string;
 
   @ApiProperty({
-    example: 'LSC001',
-    description: 'Unique shop code',
-  })
-  @IsString()
-  @IsNotEmpty()
-  code: string;
-
-  @ApiProperty({
     type: () => CreateShopAdminDto,
     description: 'Administrator details for the new shop',
   })

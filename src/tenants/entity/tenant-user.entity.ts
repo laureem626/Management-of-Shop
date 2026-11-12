@@ -8,8 +8,8 @@ import {
   JoinColumn,
   Unique,
 } from 'typeorm';
-import { User } from './users.entity';
-import { Shop } from './shop.entity';
+import { User } from '../../users/entity/users.entity';
+import { Shop } from '../../shop/entity/shop.entity';
 
 
 export enum TenantUserRole {

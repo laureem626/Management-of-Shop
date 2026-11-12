@@ -4,10 +4,9 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  Generated,
   OneToMany,
 } from 'typeorm';
-import { TenantUser } from './tenant-user.entity';
+import { TenantUser } from '../../tenants/entity/tenant-user.entity';
 
 
 @Entity({ name: 'shops', schema: 'public' })
@@ -15,7 +14,7 @@ export class Shop {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Generated('uuid')
+  @Column({ type: 'uuid', unique: true, generated: 'uuid' })
   uuid: string;
 
 

@@ -9,8 +9,9 @@ import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 
-import { User } from '../../public/entity/users.entity';
-import { TenantUser } from '../../public/entity/tenant-user.entity';
+import { User } from '../../users/entity/users.entity';
+import { TenantUser } from '../../tenants/entity/tenant-user.entity';
+
 import { LoginDto } from '../dto/login.dto';
 
 @Injectable()
@@ -26,38 +27,57 @@ export class AuthService {
   ) {}
 
   async login(loginDto: LoginDto) {
-    const { email, password } = loginDto;
+    const email = loginDto.email.trim().toLowerCase();
+    const { password, shopId } = loginDto;
 
-    // 1. Find user and retrieve password
+    // ==========================================
+    // 1. FIND USER IN PUBLIC.USERS
+    // ==========================================
+
     const user = await this.userRepository
       .createQueryBuilder('user')
       .addSelect('user.password')
-      .where('LOWER(user.email) = LOWER(:email)', { email })
+      .where('LOWER(user.email) = :email', { email })
       .getOne();
 
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException(
+        'Invalid email or password.',
+      );
     }
 
-    // 2. Check whether user is active
+    // ==========================================
+    // 2. CHECK USER STATUS
+    // ==========================================
+
     if (!user.isActive) {
-      throw new UnauthorizedException('Your account is inactive.');
+      throw new UnauthorizedException(
+        'Your account is inactive.',
+      );
     }
 
-    // 3. Verify password
+    // ==========================================
+    // 3. VERIFY PASSWORD
+    // ==========================================
+
     const passwordMatch = await bcrypt.compare(
       password,
       user.password,
     );
 
     if (!passwordMatch) {
-      throw new UnauthorizedException('Invalid email or password.');
+      throw new UnauthorizedException(
+        'Invalid email or password.',
+      );
     }
 
     let selectedShop: any = null;
     let selectedMembership: TenantUser | null = null;
 
-    // 4. Automatically identify the user's shop
+    // ==========================================
+    // 4. IDENTIFY USER'S SHOP
+    // ==========================================
+
     if (!user.isSuperAdmin) {
       const memberships = await this.tenantUserRepository.find({
         where: {
@@ -69,9 +89,10 @@ export class AuthService {
         },
       });
 
-      // Keep only memberships whose shops are active
+      // Only active shop memberships
       const activeMemberships = memberships.filter(
-        (membership) => membership.shop?.isActive,
+        (membership) =>
+          membership.shop?.isActive === true,
       );
 
       if (activeMemberships.length === 0) {
@@ -80,36 +101,75 @@ export class AuthService {
         );
       }
 
-      if (activeMemberships.length > 1) {
-        throw new UnauthorizedException(
-          'Your account is assigned to multiple shops. Please contact the Super Admin.',
-        );
+      // If shopId was supplied, select that specific shop
+      if (shopId) {
+        selectedMembership = activeMemberships.find(
+          (membership) => membership.shopId === shopId,
+        ) || null;
+
+        if (!selectedMembership) {
+          throw new UnauthorizedException(
+            'You do not have access to this shop.',
+          );
+        }
+
+        selectedShop = selectedMembership.shop;
+      } else {
+        // Automatically select shop if user belongs to only one
+        if (activeMemberships.length === 1) {
+          selectedMembership = activeMemberships[0];
+          selectedShop = selectedMembership.shop;
+        } else {
+          throw new UnauthorizedException(
+            'You belong to multiple shops. Please provide your shopId when logging in.',
+          );
+        }
       }
 
-      selectedMembership = activeMemberships[0];
-      selectedShop = selectedMembership.shop;
+      // Validate tenant schema
+      if (
+        !/^shop_[a-f0-9]{32}$/.test(selectedShop.schemaName)
+      ) {
+        throw new UnauthorizedException(
+          'Invalid shop configuration.',
+        );
+      }
     }
 
-    // 5. Generate JWT payload
+    // ==========================================
+    // 5. GENERATE JWT PAYLOAD
+    // ==========================================
+
     const payload = {
       sub: user.id,
+      id: user.id,
       uuid: user.uuid,
       email: user.email,
       isSuperAdmin: user.isSuperAdmin,
 
-      // Automatically assigned shop information
       shopId: selectedShop?.id ?? null,
+      shopUuid: selectedShop?.uuid ?? null,
+      schemaName: selectedShop?.schemaName ?? null,
+
       tenantUserId: selectedMembership?.id ?? null,
       role: selectedMembership?.role ?? null,
     };
 
-    // 6. Generate access token
+    // ==========================================
+    // 6. GENERATE ACCESS TOKEN
+    // ==========================================
+
     const accessToken = await this.jwtService.signAsync(payload);
 
-    // 7. Return response
+    // ==========================================
+    // 7. RETURN RESPONSE
+    // ==========================================
+
     return {
       message: 'Login successful.',
+
       accessToken,
+
       tokenType: 'Bearer',
 
       user: {
@@ -129,6 +189,7 @@ export class AuthService {
             uuid: selectedShop.uuid,
             name: selectedShop.name,
             code: selectedShop.code,
+            schemaName: selectedShop.schemaName,
             role: selectedMembership?.role,
           }
         : null,

@@ -28,7 +28,7 @@ export class CreateShopAdminDto {
   phoneNumber: string;
 
   @ApiProperty({
-    example: 'John@123',
+    example: '123456',
     minLength: 6,
     description: 'Password for the shop administrator',
   })

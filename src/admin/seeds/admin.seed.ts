@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { AppModule } from '../../app.module';
-import { User } from '../../public/entity/users.entity';
+import { User } from '../../users/entity/users.entity';
 
 async function seedAdmin() {
   const app = await NestFactory.createApplicationContext(AppModule);

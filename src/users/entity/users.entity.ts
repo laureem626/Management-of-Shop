@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { TenantUser } from './tenant-user.entity';
+import { TenantUser } from '../../tenants/entity/tenant-user.entity';
 
 @Entity({ name: 'users', schema: 'public' })
 export class User {
@@ -26,7 +26,7 @@ export class User {
   email: string;
 
   @Column({ type: 'varchar', length: 20, nullable: true })
-  phoneNumber: string;
+  phoneNumber: string | null;
 
   @Column({ type: 'varchar', select: false })
   password: string;
